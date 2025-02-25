@@ -1,9 +1,12 @@
-use api::urls::API_TTS_URL;
+use api::{
+    settings::{FOLDER_ID, LANGUAGE},
+    urls::API_TTS_URL,
+};
 use async_nats::Message;
 use constants::time::SECS_IN_HOUR;
 use futures_util::StreamExt;
 use lazy_static::lazy_static;
-use reqwest::Client;
+use reqwest::{Client, Url};
 use std::{
     sync::{Arc, RwLock},
     time::Duration,
@@ -45,24 +48,26 @@ async fn handle_tts_yandex(message: Message) {
     let tts_payload = TTSPayload::from_bytes_json(payload).unwrap();
 
     let client = Client::new();
+    let mut url = Url::parse(API_TTS_URL).unwrap();
+    let params = tts_payload
+        .to_hashmap(LANGUAGE.to_string(), FOLDER_ID.to_string())
+        .unwrap();
+
+    for (key, value) in params {
+        url.query_pairs_mut().append_pair(&key, &value.as_str().unwrap());
+    }
+
     let iam_token = IAM_TOKEN.read().unwrap().clone().unwrap().iam_token;
 
-    println!("{}", iam_token);
-
-    let response = client
-        .get(API_TTS_URL)
-        .bearer_auth(iam_token)
-        .body(tts_payload.to_json_string().unwrap())
-        .send()
-        .await
-        .unwrap();
+    let response = client.get(url).bearer_auth(iam_token).send().await.unwrap();
 
     if response.status().is_success() {
         let body = response.bytes().await.unwrap();
-        println!("Error: {:?}", body.len());
+        println!("{:?}", body.len());
     } else {
+        println!("Error: {:?}", response);
         println!("Error: {}", response.status());
     }
-    println!("Получено сообщение: {:?}", headers);
-    println!("Получено сообщение: {:?}", tts_payload);
+    // println!("Получено сообщение: {:?}", headers);
+    // println!("Получено сообщение: {:?}", tts_payload);
 }
