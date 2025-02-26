@@ -1,3 +1,3 @@
 pub trait Service {
-    fn start(&self);
+    async fn start_service(&self);
 }
