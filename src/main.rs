@@ -1,10 +1,11 @@
 use api::{
     settings::{FOLDER_ID, LANGUAGE},
-    urls::API_TTS_URL,
+    urls::{API_TTS_URL, NATS_URL},
 };
-use async_nats::Message;
+use async_nats::{HeaderMap, Message};
+use bytes::Bytes;
 use constants::time::SECS_IN_HOUR;
-use futures_util::StreamExt;
+use futures_util::{future, StreamExt};
 use lazy_static::lazy_static;
 use reqwest::{Client, Url};
 use std::{
@@ -19,6 +20,7 @@ mod api;
 mod constants;
 mod structs;
 mod workers;
+mod services;
 
 lazy_static! {
     pub static ref IAM_TOKEN: Arc<RwLock<Option<YandexIAMToken>>> = Arc::new(RwLock::new(None));
@@ -26,26 +28,26 @@ lazy_static! {
 
 #[tokio::main]
 async fn main() {
-    let client = async_nats::connect("nats://localhost:4222").await.unwrap();
-    let mut subscriber = client.subscribe("tts.yandex").await.unwrap();
+    let nats_client = async_nats::connect(NATS_URL).await.unwrap();
+    let mut subscriber = nats_client.subscribe("tts.yandex").await.unwrap();
 
     // Воркер который рефрешит токен каждый час
     yandex_iam_token_refresher(Duration::from_secs(SECS_IN_HOUR));
 
-    while let Some(message) = subscriber.next().await {
-        tokio::spawn(async move {
+    tokio::spawn(async move {
+        while let Some(message) = subscriber.next().await {
             handle_tts_yandex(message).await;
-        });
-    }
+        }
+    });
 
-    println!("Exit");
+    future::pending::<()>().await;
 }
 
 async fn handle_tts_yandex(message: Message) {
-    let headers = message.headers;
     let payload = message.payload;
 
     let tts_payload = TTSPayload::from_bytes_json(payload).unwrap();
+    println!("Получено сообщение: {:?}", tts_payload);
 
     let client = Client::new();
     let mut url = Url::parse(API_TTS_URL).unwrap();
@@ -54,7 +56,8 @@ async fn handle_tts_yandex(message: Message) {
         .unwrap();
 
     for (key, value) in params {
-        url.query_pairs_mut().append_pair(&key, &value.as_str().unwrap());
+        url.query_pairs_mut()
+            .append_pair(&key, &value.as_str().unwrap());
     }
 
     let iam_token = IAM_TOKEN.read().unwrap().clone().unwrap().iam_token;
@@ -63,11 +66,24 @@ async fn handle_tts_yandex(message: Message) {
 
     if response.status().is_success() {
         let body = response.bytes().await.unwrap();
-        println!("{:?}", body.len());
+        let headers = message.headers.unwrap();
+        let reply_to = headers.get("reply-to").unwrap().as_str();
+        println!("{}", reply_to);
+        publish_tts(reply_to, body).await;
     } else {
         println!("Error: {:?}", response);
         println!("Error: {}", response.status());
     }
-    // println!("Получено сообщение: {:?}", headers);
-    // println!("Получено сообщение: {:?}", tts_payload);
+}
+
+async fn publish_tts(reply_to: &str, payload: Bytes) {
+    let nats_client = async_nats::connect(NATS_URL).await.unwrap();
+
+    let result = nats_client
+        .publish(reply_to.to_string(), payload.into())
+        .await;
+
+    nats_client.flush().await.unwrap();
+
+    println!("{:?}", result);
 }
