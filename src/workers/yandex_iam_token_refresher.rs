@@ -3,11 +3,11 @@ use crate::api::urls::API_AUTH_TTS_URL;
 use crate::{structs::yandex_iam_token::YandexIAMToken, IAM_TOKEN};
 use reqwest::Client;
 use serde_json::json;
+use std::thread::sleep;
 use std::time::Duration;
-use std::{thread::sleep};
 
+// Рефрешит токен каждый "every"
 pub fn yandex_iam_token_refresher(every: Duration) {
-    // Обновить токен каждый час
     tokio::spawn(async move {
         loop {
             let client = Client::new();

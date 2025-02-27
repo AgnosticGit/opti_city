@@ -1,16 +1,14 @@
 use crate::api::settings::FOLDER_ID;
+use crate::api::settings::LANGUAGE;
 use crate::api::urls::API_TTS_URL;
 use crate::structs::failrue::Failure;
 use crate::structs::tts_payload::TTSPayload;
-use crate::{api::settings::LANGUAGE, services::service::Service};
 use crate::{IAM_TOKEN, NATS_URL};
-use anyhow::anyhow;
 use async_nats::{Client, Message};
 use bytes::Bytes;
 use futures_util::StreamExt;
 use reqwest::{Client as reqwest_client, Url};
 use serde_json::json;
-use std::error::Error;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
