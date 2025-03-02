@@ -1,88 +1,67 @@
-// use crate::api::settings::FOLDER_ID;
-// use crate::api::urls::API_TTS_URL;
-// use crate::structs::tts_payload::TTSPayload;
-// use crate::{api::settings::LANGUAGE, services::service::Service};
-// use crate::{IAM_TOKEN, NATS_URL};
-// use async_nats::{Client, Message};
-// use bytes::Bytes;
-// use futures_util::StreamExt;
-// use reqwest::{Client as reqwest_client, Url};
-// use std::sync::Arc;
-// use tokio::sync::RwLock;
+use crate::api::urls::API_STT_URL;
+use crate::yandex::recognizer_client::RecognizerClient;
+use crate::{yandex, IAM_TOKEN};
+use async_nats::Client;
+use futures_util::stream;
+use std::sync::Arc;
+use tokio::sync::RwLock;
+use tonic::service::Interceptor;
+use tonic::transport::Channel;
+use tonic::{Request, Status};
 
-// pub struct YandexASR {
-//     nats_client: Arc<RwLock<Client>>,
-// }
+pub struct YandexASR {
+    nats_client: Arc<RwLock<Client>>,
+}
 
-// impl YandexASR {
-//     pub async fn start_service() {
-//         let yandex_tts = Self::init_client().await.unwrap();
+impl YandexASR {
+    pub async fn start_service() {
+        let channel = Channel::from_static(API_STT_URL).connect().await.unwrap();
+        let token = IAM_TOKEN.read().unwrap().clone().unwrap().iam_token;
+        let interceptor = AuthInterceptor::new(token);
+        let mut connection = RecognizerClient::with_interceptor(channel, interceptor);
 
-//         let mut subscriber = yandex_tts
-//             .nats_client
-//             .read()
-//             .await
-//             .subscribe("tts.yandex")
-//             .await
-//             .unwrap();
+        let event = yandex::streaming_request::Event::SilenceChunk(yandex::SilenceChunk {
+            duration_ms: 60,
+        });
 
-//         tokio::spawn(async move {
-//             while let Some(message) = subscriber.next().await {
-//                 yandex_tts.handle_tts_yandex(message).await;
-//             }
-//         });
-//     }
+        let request = yandex::StreamingRequest { event: Some(event) };
+        let r = vec![request];
+        let request_stream = stream::iter(r);
 
-//     async fn init_client() -> Result<Self, Box<dyn std::error::Error>> {
-//         let nats_client = async_nats::connect(NATS_URL).await?;
+        let response_stream = connection.recognize_streaming(request_stream).await;
 
-//         Ok(Self {
-//             nats_client: Arc::new(RwLock::new(nats_client)),
-//         })
-//     }
+        let mut response = response_stream.unwrap();
 
-//     async fn handle_tts_yandex(&self, message: Message) {
-//         let payload = message.payload;
+        println!("{:?}", response);
 
-//         let tts_payload = TTSPayload::from_bytes_json(payload).unwrap();
-//         println!("Получено сообщение: {:?}", tts_payload);
+        while let Ok(resp) = response.get_mut().message().await {
+            println!("Received response: {:?}", resp);
+        }
+    }
+}
 
-//         let client = reqwest_client::new();
-//         let mut url = Url::parse(API_TTS_URL).unwrap();
-//         let params = tts_payload
-//             .to_hashmap(LANGUAGE.to_string(), FOLDER_ID.to_string())
-//             .unwrap();
+#[derive(Clone)]
+pub struct AuthInterceptor {
+    token: String,
+}
 
-//         for (key, value) in params {
-//             url.query_pairs_mut()
-//                 .append_pair(&key, &value.as_str().unwrap());
-//         }
+impl AuthInterceptor {
+    /// Создать новый интерсептор с заданным токеном
+    pub fn new(token: impl Into<String>) -> Self {
+        Self {
+            token: token.into(),
+        }
+    }
+}
 
-//         let iam_token = IAM_TOKEN.read().unwrap().clone().unwrap().iam_token;
-
-//         let response = client.get(url).bearer_auth(iam_token).send().await.unwrap();
-
-//         if response.status().is_success() {
-//             let body = response.bytes().await.unwrap();
-//             let headers = message.headers.unwrap();
-//             let reply_to = headers.get("reply-to").unwrap().as_str();
-//             println!("{}", reply_to);
-//             self.publish_tts(reply_to, body).await;
-//         } else {
-//             println!("Error: {:?}", response);
-//             println!("Error: {}", response.status());
-//         }
-//     }
-
-//     async fn publish_tts(&self, reply_to: &str, payload: Bytes) {
-//         let nats_client = self.nats_client.read().await;
-
-//         let result = nats_client
-//             .publish(reply_to.to_string(), payload.into())
-//             .await;
-
-//         nats_client.flush().await.unwrap();
-
-//         println!("{:?}", result);
-//     }
-// }
+impl Interceptor for AuthInterceptor {
+    fn call(&mut self, mut req: Request<()>) -> Result<Request<()>, Status> {
+        req.metadata_mut().insert(
+            "authorization",
+            format!("Bearer {}", self.token)
+                .parse()
+                .map_err(|_| Status::internal("Невалидный токен"))?,
+        );
+        Ok(req)
+    }
+}

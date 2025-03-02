@@ -1,0 +1,3 @@
+[submodule "proto/cloudapi"]
+	path = proto/cloudapi
+	url = https://github.com/yandex-cloud/cloudapi

@@ -17,6 +17,10 @@ mod services;
 mod structs;
 mod workers;
 
+mod yandex {
+    tonic::include_proto!("speechkit.stt.v3");
+}
+
 lazy_static! {
     pub static ref IAM_TOKEN: Arc<RwLock<Option<YandexIAMToken>>> = Arc::new(RwLock::new(None));
 }
@@ -26,6 +30,7 @@ async fn main() {
     yandex_iam_token_refresher(Duration::from_secs(SECS_IN_HOUR));
 
     YandexTTS::start_service().await;
+    // YandexASR::start_service().await;
 
     future::pending::<()>().await;
 }
