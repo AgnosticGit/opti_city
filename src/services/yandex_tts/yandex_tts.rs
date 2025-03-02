@@ -2,7 +2,6 @@ use crate::api::settings::FOLDER_ID;
 use crate::api::settings::LANGUAGE;
 use crate::api::urls::API_TTS_URL;
 use crate::structs::failrue::Failure;
-use crate::structs::tts_payload::TTSPayload;
 use crate::{IAM_TOKEN, NATS_URL};
 use async_nats::{Client, Message};
 use bytes::Bytes;
@@ -11,6 +10,8 @@ use reqwest::{Client as reqwest_client, Url};
 use serde_json::json;
 use std::sync::Arc;
 use tokio::sync::RwLock;
+
+use super::structs::tts_payload::TTSPayload;
 
 pub struct YandexTTS {
     nats_client: Arc<RwLock<Client>>,

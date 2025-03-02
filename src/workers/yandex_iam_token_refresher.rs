@@ -5,9 +5,12 @@ use reqwest::Client;
 use serde_json::json;
 use std::thread::sleep;
 use std::time::Duration;
+use tokio::sync::watch;
 
 // Рефрешит токен каждый "every"
-pub fn yandex_iam_token_refresher(every: Duration) {
+pub async fn yandex_iam_token_refresher(every: Duration) {
+    let (tx, mut rx) = watch::channel(());
+
     tokio::spawn(async move {
         loop {
             let client = Client::new();
@@ -29,7 +32,11 @@ pub fn yandex_iam_token_refresher(every: Duration) {
                 println!("Error: {}", response.status());
             }
 
+            let _ = tx.send(());
+
             sleep(every);
         }
     });
+
+    rx.changed().await.unwrap();
 }
