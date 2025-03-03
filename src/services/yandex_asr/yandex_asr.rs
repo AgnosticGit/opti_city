@@ -16,7 +16,7 @@ pub struct YandexASR {
 impl YandexASR {
     pub async fn start_service() {
         let channel = Channel::from_static(API_STT_URL).connect().await.unwrap();
-        let token = IAM_TOKEN.read().unwrap().clone().unwrap().iam_token;
+        let token = IAM_TOKEN.read().await.clone().unwrap().iam_token;
         let interceptor = AuthInterceptor::new(token);
         let mut connection = RecognizerClient::with_interceptor(channel, interceptor);
 

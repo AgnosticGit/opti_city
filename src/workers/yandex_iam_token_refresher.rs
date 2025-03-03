@@ -26,7 +26,7 @@ pub async fn yandex_iam_token_refresher(every: Duration) {
             if response.status().is_success() {
                 let body = response.text().await.unwrap();
                 let yandex_iam_token = YandexIAMToken::from_json_string(body).unwrap();
-                let mut iam_token_access = IAM_TOKEN.write().unwrap();
+                let mut iam_token_access = IAM_TOKEN.write().await;
                 *iam_token_access = Some(yandex_iam_token);
             } else {
                 println!("Error: {}", response.status());

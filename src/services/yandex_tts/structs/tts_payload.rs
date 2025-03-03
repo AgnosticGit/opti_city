@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use bytes::Bytes;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde_json::{Error, Value};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct TTSPayload {
@@ -14,7 +14,7 @@ pub struct TTSPayload {
 }
 
 impl TTSPayload {
-    pub fn from_bytes_json(bytes: Bytes) -> Result<Self, Box<dyn std::error::Error>> {
+    pub fn from_bytes_json(bytes: Bytes) -> Result<Self, Error> {
         let payload: TTSPayload = serde_json::from_slice(&bytes)?;
         Ok(payload)
     }

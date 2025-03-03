@@ -3,12 +3,17 @@ name = "tts"
 version = "0.1.0"
 edition = "2021"
 
+[env]
+RUST_LOG = "debug"
+
 [dependencies]
 async-nats = "0.39.0"
 bytes = "1.10.0"
 chrono = "0.4.40"
+env_logger = "0.11.6"
 futures-util = "0.3.31"
 lazy_static = "1.5.0"
+log = "0.4.26"
 prost = "0.13.5"
 reqwest = "0.12.12"
 serde = "1.0.218"

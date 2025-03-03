@@ -4,6 +4,7 @@ use std::{error::Error, fmt};
 pub struct Failure {
     pub reply_to: Option<String>,
     pub message: &'static str,
+    pub error: Option<Box<dyn std::error::Error + Send + Sync>>,
 }
 
 impl fmt::Display for Failure {
