@@ -181,6 +181,6 @@ impl YandexTTS {
     async fn publish_tts(&self, reply_to: &str, payload: Bytes) {
         let nats_client = self.nats_client.clone();
         let _ = nats_client.publish(reply_to.to_string(), payload).await;
-        nats_client.flush().await.unwrap();
+        nats_client.flush().await;
     }
 }
